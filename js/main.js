@@ -47,14 +47,56 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    // 识别函数（这里需要接入实际的识别API）
-    function recognizeCharacter() {
-        // 这里是示例数据，实际项目中需要接入手写识别API
-        const result = document.getElementById('result');
-        result.style.display = 'block';
-        result.querySelector('.pronunciation').textContent = '示例: "字" (zì)';
-        result.querySelector('.words').textContent = '常用词组：文字、汉字、字体';
-        result.querySelector('.usage').textContent = '用法：用于表示书面语言的基本符号单位。';
+    // 获取百度API访问令牌
+    async function getBaiduToken() {
+        const response = await fetch(`https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id=${CONFIG.BAIDU_API_KEY}&client_secret=${CONFIG.BAIDU_SECRET_KEY}`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        return data.access_token;
+    }
+
+    // 将Canvas转换为Base64图片
+    function getCanvasImage() {
+        return canvas.toDataURL('image/png')
+            .replace('data:image/png;base64,', '');
+    }
+
+    // 识别函数修改为异步函数
+    async function recognizeCharacter() {
+        try {
+            const result = document.getElementById('result');
+            result.style.display = 'block';
+            result.querySelector('.pronunciation').textContent = '识别中...';
+            
+            const token = await getBaiduToken();
+            const image = getCanvasImage();
+            
+            const response = await fetch('https://aip.baidubce.com/rest/2.0/handwriting/v1/recognize', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `access_token=${token}&image=${encodeURIComponent(image)}`
+            });
+
+            const data = await response.json();
+            
+            if (data.words_result && data.words_result.length > 0) {
+                const character = data.words_result[0].words;
+                
+                // 获取汉字信息（这里可以接入其他API获取读音和释义）
+                result.querySelector('.pronunciation').textContent = `识别结果: "${character}"`;
+                result.querySelector('.words').textContent = '正在查询词组...';
+                result.querySelector('.usage').textContent = '正在查询用法...';
+            } else {
+                result.querySelector('.pronunciation').textContent = '未能识别，请重试';
+            }
+        } catch (error) {
+            console.error('识别出错:', error);
+            const result = document.getElementById('result');
+            result.querySelector('.pronunciation').textContent = '识别失败，请重试';
+        }
     }
 
     // 事件监听
